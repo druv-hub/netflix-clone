@@ -1,6 +1,7 @@
 import {
   Episode,
   loadEpisodes,
+  resolveVideoUrl,
   saveWatchProgress,
 } from "@/lib/memoryStore";
 import {
@@ -153,10 +154,7 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
       {/* HTML5 Video Element */}
       <video
         ref={videoRef}
-        src={
-          episode.videoUrl ||
-          "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-        }
+        src={resolveVideoUrl(episode.videoUrl)}
         poster={episode.thumbnailUrl}
         autoPlay
         playsInline

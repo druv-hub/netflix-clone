@@ -37,6 +37,29 @@ export interface WatchProgress {
   lastWatchedAt: number;
 }
 
+/**
+ * Resolves video URLs and automatically converts Google Drive share links
+ * (e.g. https://drive.google.com/file/d/FILE_ID/view) to direct streaming URLs.
+ */
+export function resolveVideoUrl(url?: string): string {
+  if (!url || !url.trim()) {
+    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+  }
+  const cleanUrl = url.trim();
+
+  // If it's a Google Drive link, extract file ID and convert to direct stream link
+  if (cleanUrl.includes("drive.google.com")) {
+    const match =
+      cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+      cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+    }
+  }
+
+  return cleanUrl;
+}
+
 const STORAGE_KEY_EPISODES = "our_story_netflix_episodes_v2";
 const STORAGE_KEY_SEASONS = "our_story_netflix_seasons_v2";
 const STORAGE_KEY_ACTIVE_PROFILE = "our_story_active_profile_v2";
