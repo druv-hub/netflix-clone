@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;600;700;800;900&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: #141414;
+  --color-foreground: #ffffff;
+  --color-netflix-red: #E50914;
+  --color-netflix-red-hover: #F40612;
+  --color-netflix-dark: #141414;
+  --color-netflix-card: #181818;
+  --color-netflix-card-hover: #282828;
+  --color-netflix-gray: #808080;
+  --font-bebas: "Bebas Neue", sans-serif;
+  --font-montserrat: "Montserrat", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --background: #141414;
+  --foreground: #ffffff;
+  --netflix-red: #E50914;
+  --radius: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #141414;
+  color: #ffffff;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background-color: #141414;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom Netflix Hide Scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Netflix Style Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #141414;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+/* Netflix Arched Title Shadow */
+.netflix-text-shadow {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.netflix-hero-vignette {
+  background: linear-gradient(
+    77deg,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.4) 45%,
+    transparent 85%
+  );
+}
+
+.netflix-bottom-fade {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(20, 20, 20, 0.4) 40%,
+    rgba(20, 20, 20, 0.8) 75%,
+    #141414 100%
+  );
+}
+
+/* Top 10 Giant Netflix Number 3D Outline */
+.top10-number {
+  font-family: "Bebas Neue", impact, sans-serif;
+  font-size: 8rem;
+  line-height: 0.8;
+  font-weight: 900;
+  color: #141414;
+  -webkit-text-stroke: 4px #595959;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+  user-select: none;
+}
+
+@media (min-width: 768px) {
+  .top10-number {
+    font-size: 10rem;
+    -webkit-text-stroke: 5px #595959;
+  }
+}
+
+/* Netflix Intro Animations */
+@keyframes netflixZoom {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+    filter: brightness(2);
+  }
+}
+
+.animate-netflix-zoom {
+  animation: netflixZoom 3.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes netflixRibbonGlow {
+  0%, 100% {
+    box-shadow: 0 0 30px #E50914, 0 0 60px rgba(229, 9, 20, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 60px #E50914, 0 0 120px rgba(229, 9, 20, 0.8), 0 0 180px rgba(229, 9, 20, 0.4);
+  }
+}
+
+.netflix-glow {
+  animation: netflixRibbonGlow 2s infinite ease-in-out;
+}
