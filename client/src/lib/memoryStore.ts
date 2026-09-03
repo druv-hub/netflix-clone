@@ -38,6 +38,24 @@ export interface WatchProgress {
 }
 
 /**
+ * Extracts Google Drive file ID from any Google Drive link or returns null.
+ */
+export function getGoogleDriveFileId(url?: string): string | null {
+  if (!url) return null;
+  const cleanUrl = url.trim();
+  if (cleanUrl.includes("drive.google.com") || cleanUrl.includes("googleusercontent.com")) {
+    const match =
+      cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+      cleanUrl.match(/id=([a-zA-Z0-9_-]+)/) ||
+      cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+/**
  * Resolves video URLs and automatically converts Google Drive share links
  * (e.g. https://drive.google.com/file/d/FILE_ID/view) to direct streaming URLs.
  */
@@ -48,13 +66,9 @@ export function resolveVideoUrl(url?: string): string {
   const cleanUrl = url.trim();
 
   // If it's a Google Drive link, extract file ID and convert to direct stream link
-  if (cleanUrl.includes("drive.google.com")) {
-    const match =
-      cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-      cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
-      return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-    }
+  const gId = getGoogleDriveFileId(cleanUrl);
+  if (gId) {
+    return `https://drive.google.com/uc?export=download&id=${gId}`;
   }
 
   return cleanUrl;

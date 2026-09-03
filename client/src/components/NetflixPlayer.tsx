@@ -1,5 +1,6 @@
 import {
   Episode,
+  getGoogleDriveFileId,
   loadEpisodes,
   resolveVideoUrl,
   saveWatchProgress,
@@ -52,6 +53,8 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
       ? allEpisodes[currentIndex + 1]
       : null;
 
+  const googleDriveId = getGoogleDriveFileId(episode.videoUrl);
+
   const handleMouseMove = () => {
     setShowControls(true);
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -80,17 +83,19 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
-    const dur = videoRef.current.duration || 1;
-    setDuration(dur);
+    const current = videoRef.current.currentTime;
+    const total = videoRef.current.duration;
+    setCurrentTime(current);
+    setDuration(total);
 
-    // Save progress to watch history every few seconds
-    const percent = Math.round((videoRef.current.currentTime / dur) * 100);
-    saveWatchProgress(episode.id, percent);
+    if (total > 0) {
+      const progressPercent = Math.floor((current / total) * 100);
+      saveWatchProgress(episode.id, progressPercent);
+    }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number(e.target.value);
+    const time = parseFloat(e.target.value);
     if (videoRef.current) {
       videoRef.current.currentTime = time;
       setCurrentTime(time);
@@ -98,11 +103,12 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
   };
 
   const skipTime = (seconds: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(
-      0,
-      Math.min(duration, videoRef.current.currentTime + seconds)
-    );
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(
+        0,
+        Math.min(videoRef.current.duration || 0, videoRef.current.currentTime + seconds)
+      );
+    }
   };
 
   const toggleMute = () => {
@@ -112,30 +118,34 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    setVolume(val);
+    const val = parseFloat(e.target.value);
     if (videoRef.current) {
       videoRef.current.volume = val;
-      videoRef.current.muted = val === 0;
+      setVolume(val);
       setIsMuted(val === 0);
     }
   };
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
+
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(console.error);
+      containerRef.current.requestFullscreen().catch((err) => {
+        console.error("Error attempting fullscreen:", err);
+      });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(console.error);
+      document.exitFullscreen().catch((err) => {
+        console.error("Error attempting exit fullscreen:", err);
+      });
       setIsFullscreen(false);
     }
   };
 
-  const formatTime = (secs: number) => {
-    if (isNaN(secs)) return "00:00";
-    const minutes = Math.floor(secs / 60);
-    const seconds = Math.floor(secs % 60);
+  const formatTime = (timeInSeconds: number) => {
+    if (isNaN(timeInSeconds)) return "00:00";
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes.toString().padStart(2, "0")}:${seconds
       .toString()
       .padStart(2, "0")}`;
@@ -151,19 +161,29 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
       onMouseMove={handleMouseMove}
       className="relative w-screen h-screen bg-black overflow-hidden select-none cursor-default"
     >
-      {/* HTML5 Video Element */}
-      <video
-        ref={videoRef}
-        src={resolveVideoUrl(episode.videoUrl)}
-        poster={episode.thumbnailUrl}
-        autoPlay
-        playsInline
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleTimeUpdate}
-        onEnded={() => nextEpisode && playEpisode(nextEpisode.id)}
-        onClick={togglePlay}
-        className="w-full h-full object-contain cursor-pointer"
-      />
+      {/* Video Stream: Google Drive Embed Player or HTML5 Video */}
+      {googleDriveId ? (
+        <iframe
+          src={`https://drive.google.com/file/d/${googleDriveId}/preview`}
+          allow="autoplay; encrypted-media; fullscreen"
+          allowFullScreen
+          className="w-full h-full border-0 absolute inset-0 z-10"
+          title={episode.title}
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          src={resolveVideoUrl(episode.videoUrl)}
+          poster={episode.thumbnailUrl}
+          autoPlay
+          playsInline
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleTimeUpdate}
+          onEnded={() => nextEpisode && playEpisode(nextEpisode.id)}
+          onClick={togglePlay}
+          className="w-full h-full object-contain cursor-pointer z-10"
+        />
+      )}
 
       {/* Love Note Overlay (Netflix Subtitle / Floating Sweet Message) */}
       {showLoveNotes && episode.loveNote && (
@@ -175,7 +195,7 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
         </div>
       )}
 
-      {/* Top Header Bar (Back Button + Title) */}
+      {/* Top Header Bar (Back Button + Title + Controls) */}
       <div
         className={`absolute top-0 left-0 right-0 p-6 sm:p-8 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-center justify-between z-40 transition-opacity duration-300 ${
           showControls ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -183,19 +203,39 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
       >
         <button
           onClick={() => setLocation("/show")}
-          className="flex items-center gap-3 text-white hover:text-[#E50914] transition-colors font-bold text-sm sm:text-base group"
+          className="flex items-center gap-3 text-white hover:text-[#E50914] transition-colors font-bold text-sm sm:text-base group pointer-events-auto bg-black/40 hover:bg-black/70 px-3.5 py-1.5 rounded-md backdrop-blur-md border border-white/10"
         >
           <ArrowLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
           <span>Exit to Episodes</span>
         </button>
 
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-widest text-[#E50914] font-extrabold">
-            Season {episode.seasonNumber} · Episode {episode.episodeNumber}
-          </p>
-          <h1 className="text-sm sm:text-lg font-bold text-white truncate max-w-md">
-            {episode.title}
-          </h1>
+        <div className="flex items-center gap-4">
+          {nextEpisode && (
+            <button
+              onClick={() => playEpisode(nextEpisode.id)}
+              className="flex items-center gap-1.5 bg-[#E50914] hover:bg-[#b80710] text-white px-3.5 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all shadow-lg pointer-events-auto"
+            >
+              <span>Next Episode</span>
+              <SkipForward className="w-4 h-4 fill-current" />
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowEpisodeDrawer(!showEpisodeDrawer)}
+            className="flex items-center gap-1.5 bg-black/50 hover:bg-black/80 border border-white/20 text-white px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition-all backdrop-blur-md pointer-events-auto"
+          >
+            <List className="w-4 h-4" />
+            <span className="hidden sm:inline">Episodes</span>
+          </button>
+
+          <div className="text-right hidden sm:block">
+            <p className="text-[10px] uppercase tracking-widest text-[#E50914] font-extrabold">
+              Season {episode.seasonNumber} · Episode {episode.episodeNumber}
+            </p>
+            <h1 className="text-xs sm:text-sm font-bold text-white truncate max-w-xs">
+              {episode.title}
+            </h1>
+          </div>
         </div>
       </div>
 
@@ -253,139 +293,141 @@ export function NetflixPlayer({ episode }: NetflixPlayerProps) {
         </div>
       )}
 
-      {/* Bottom Control Bar */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 p-6 sm:p-8 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-40 transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        {/* Scrubber Timeline */}
-        <div className="flex items-center gap-3 mb-4">
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={handleSeek}
-            className="w-full h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#E50914] hover:h-2.5 transition-all"
-          />
-        </div>
+      {/* Bottom Control Bar (for native HTML5 videos) */}
+      {!googleDriveId && (
+        <div
+          className={`absolute bottom-0 left-0 right-0 p-6 sm:p-8 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-40 transition-opacity duration-300 ${
+            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          {/* Scrubber Timeline */}
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#E50914] hover:h-2.5 transition-all"
+            />
+          </div>
 
-        {/* Action Controls Row */}
-        <div className="flex items-center justify-between text-white">
-          {/* Left Actions */}
-          <div className="flex items-center gap-4 sm:gap-6">
-            {/* Play / Pause */}
-            <button
-              onClick={togglePlay}
-              className="hover:text-[#E50914] transition-colors p-1"
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? (
-                <Pause className="w-7 h-7 fill-current" />
-              ) : (
-                <Play className="w-7 h-7 fill-current" />
-              )}
-            </button>
-
-            {/* Rewind 10s */}
-            <button
-              onClick={() => skipTime(-10)}
-              className="hover:text-white/80 transition-colors p-1 flex items-center justify-center relative"
-              title="Rewind 10 seconds"
-            >
-              <RotateCcw className="w-6 h-6" />
-              <span className="absolute text-[8px] font-bold">10</span>
-            </button>
-
-            {/* Fast Forward 10s */}
-            <button
-              onClick={() => skipTime(10)}
-              className="hover:text-white/80 transition-colors p-1 flex items-center justify-center relative"
-              title="Forward 10 seconds"
-            >
-              <RotateCw className="w-6 h-6" />
-              <span className="absolute text-[8px] font-bold">10</span>
-            </button>
-
-            {/* Volume Control */}
-            <div className="flex items-center gap-2 group/vol">
+          {/* Action Controls Row */}
+          <div className="flex items-center justify-between text-white">
+            {/* Left Actions */}
+            <div className="flex items-center gap-4 sm:gap-6">
+              {/* Play / Pause */}
               <button
-                onClick={toggleMute}
+                onClick={togglePlay}
                 className="hover:text-[#E50914] transition-colors p-1"
+                title={isPlaying ? "Pause" : "Play"}
               >
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="w-6 h-6" />
+                {isPlaying ? (
+                  <Pause className="w-7 h-7 fill-current" />
                 ) : (
-                  <Volume2 className="w-6 h-6" />
+                  <Play className="w-7 h-7 fill-current" />
                 )}
               </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-16 sm:w-24 h-1 bg-white/30 rounded appearance-none cursor-pointer accent-white"
-              />
+
+              {/* Rewind 10s */}
+              <button
+                onClick={() => skipTime(-10)}
+                className="hover:text-white/80 transition-colors p-1 flex items-center justify-center relative"
+                title="Rewind 10 seconds"
+              >
+                <RotateCcw className="w-6 h-6" />
+                <span className="absolute text-[8px] font-bold">10</span>
+              </button>
+
+              {/* Fast Forward 10s */}
+              <button
+                onClick={() => skipTime(10)}
+                className="hover:text-white/80 transition-colors p-1 flex items-center justify-center relative"
+                title="Forward 10 seconds"
+              >
+                <RotateCw className="w-6 h-6" />
+                <span className="absolute text-[8px] font-bold">10</span>
+              </button>
+
+              {/* Volume Control */}
+              <div className="flex items-center gap-2 group/vol">
+                <button
+                  onClick={toggleMute}
+                  className="hover:text-[#E50914] transition-colors p-1"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-6 h-6" />
+                  ) : (
+                    <Volume2 className="w-6 h-6" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="w-16 sm:w-24 h-1 bg-white/30 rounded appearance-none cursor-pointer accent-white"
+                />
+              </div>
+
+              {/* Time Indicator */}
+              <span className="text-xs sm:text-sm font-semibold text-white/80">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
             </div>
 
-            {/* Time Indicator */}
-            <span className="text-xs sm:text-sm font-semibold text-white/80">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-          </div>
-
-          {/* Right Actions */}
-          <div className="flex items-center gap-4 sm:gap-6">
-            {/* Next Episode Button */}
-            {nextEpisode && (
-              <button
-                onClick={() => playEpisode(nextEpisode.id)}
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-white/90 hover:text-white hover:bg-white/10 px-3 py-1.5 rounded transition-colors"
-                title="Next Episode"
-              >
-                <span>Next</span>
-                <SkipForward className="w-4 h-4 fill-current" />
-              </button>
-            )}
-
-            {/* Episode List Drawer Button */}
-            <button
-              onClick={() => setShowEpisodeDrawer(!showEpisodeDrawer)}
-              className="hover:text-[#E50914] transition-colors p-1"
-              title="Episodes List"
-            >
-              <List className="w-6 h-6" />
-            </button>
-
-            {/* Love Notes Toggle */}
-            <button
-              onClick={() => setShowLoveNotes(!showLoveNotes)}
-              className={`p-1 transition-colors ${
-                showLoveNotes ? "text-[#E50914]" : "text-white/40 hover:text-white"
-              }`}
-              title="Toggle Love Notes"
-            >
-              <Heart className="w-6 h-6 fill-current" />
-            </button>
-
-            {/* Fullscreen Toggle */}
-            <button
-              onClick={toggleFullscreen}
-              className="hover:text-white/80 transition-colors p-1"
-              title="Fullscreen"
-            >
-              {isFullscreen ? (
-                <Minimize className="w-6 h-6" />
-              ) : (
-                <Maximize className="w-6 h-6" />
+            {/* Right Actions */}
+            <div className="flex items-center gap-4 sm:gap-6">
+              {/* Next Episode Button */}
+              {nextEpisode && (
+                <button
+                  onClick={() => playEpisode(nextEpisode.id)}
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-white/90 hover:text-white hover:bg-white/10 px-3 py-1.5 rounded transition-colors"
+                  title="Next Episode"
+                >
+                  <span>Next</span>
+                  <SkipForward className="w-4 h-4 fill-current" />
+                </button>
               )}
-            </button>
+
+              {/* Episode List Drawer Button */}
+              <button
+                onClick={() => setShowEpisodeDrawer(!showEpisodeDrawer)}
+                className="hover:text-[#E50914] transition-colors p-1"
+                title="Episodes List"
+              >
+                <List className="w-6 h-6" />
+              </button>
+
+              {/* Love Notes Toggle */}
+              <button
+                onClick={() => setShowLoveNotes(!showLoveNotes)}
+                className={`p-1 transition-colors ${
+                  showLoveNotes ? "text-[#E50914]" : "text-white/40 hover:text-white"
+                }`}
+                title="Toggle Love Notes"
+              >
+                <Heart className="w-6 h-6 fill-current" />
+              </button>
+
+              {/* Fullscreen Toggle */}
+              <button
+                onClick={toggleFullscreen}
+                className="hover:text-white/80 transition-colors p-1"
+                title="Fullscreen"
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-6 h-6" />
+                ) : (
+                  <Maximize className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
